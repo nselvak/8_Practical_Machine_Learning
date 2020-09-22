@@ -1,0 +1,145 @@
+---
+title: "project"
+author: "N Selva Kumar"
+output: html_document
+---
+
+**Synopsis**
+
+In this project we will be building a prediction model to know how a certain user is lifting weights based on data obtained from an accelerometer.
+
+The dataset consists of 5 classes from 6 participants:
+
+. The subject is lifting weights exactly according to the specification (Class A).
+
+. Throwing the elbow to the front (Class B).
+
+. Lifting the dumbbell only halfway (Class C).
+
+. Lowering the dumbbell only halfway (Class D).
+
+. Throwing the hips to the front (Class E).
+
+For more information and description about the dataset, see the official website: <http://groupware.les.inf.puc-rio.br/har>
+
+**Getting the data**
+
+The file "pml-training" will served as our training set.
+The file "pml-testing" is a data set without the classes, in other word, we will predict the classes based on our model.
+
+```{r Getting data}
+
+trainUrl <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+trainFile <- "./data/pml-training.csv"
+testFile  <- "./data/pml-testing.csv"
+
+if (!file.exists("./data")) {
+  dir.create("./data")
+}
+if (!file.exists(trainFile)) {
+  download.file(trainUrl, destfile=trainFile, method="curl")
+}
+if (!file.exists(testFile)) {
+  download.file(testUrl, destfile=testFile, method="curl")
+}
+
+dataset <- read.csv("./data/pml-training.csv", na.strings = c("NA", ""))
+validation <- read.csv("./data/pml-testing.csv")
+```
+
+**Data preprocessing**
+
+Import the necessary packages.
+```{r lib}
+library(caret)
+library(randomForest)
+```
+
+Set a seed for reproducibility.
+
+```{r seed}
+set.seed(17)
+```
+
+Create the data partitions. 70% of it will go to the training set and the rest will be the test set.
+
+```{r, data partition}
+inTrain = createDataPartition(y=dataset$classe, p=0.7, list=FALSE)
+training = dataset[inTrain,]
+testing = dataset[-inTrain,]
+```
+
+Eliminate the NA entries.
+
+```{r training remove NA values}
+
+# Vector of all the columns and the number of NA entries
+naColumns = sapply(training, function(x) {sum(is.na(x))}) 
+
+# Columns that has NA values
+columnsWithNA = names(naColumns[naColumns > 0])
+
+# Remove columns from the training set
+training = training[, !names(training) %in% columnsWithNA] 
+
+#Remove unnecessary columns (the first 7 columns)
+training <- training[, -c(1:7)]
+names(training)
+```
+
+Do the same for the validation set
+
+```{rvalidation remove NA values}
+
+# Make a vector of all the columns and the number of NA entries
+naColumns = sapply(validation, function(x) {sum(is.na(x))}) 
+
+# Vector with all the columns that has NA values
+columnsWithNA = names(naColumns[naColumns > 0]) 
+
+# Remove columns from the validation set.
+validation = validation[, !names(validation) %in% columnsWithNA] 
+
+validation <- validation[, -c(1:7)]
+names(validation)
+```
+
+Do the same for the testing set.
+
+```{r testing remove NA values}
+# Make a vector of all the columns and the number of NA entries
+naColumns = sapply(testing, function(x) {sum(is.na(x))}) 
+
+# Vector with all the columns that has NA values
+columnsWithNA = names(naColumns[naColumns > 0]) 
+
+#Remove columns from the testing set.
+testing = testing[, !names(testing) %in% columnsWithNA] 
+
+testing <- testing[, -c(1:7)]
+names(testing)
+```
+
+Now, we build the prediction model using Random Forest.
+
+```{r accuracy}
+
+testing$classe <- as.factor(testing$classe)
+training$classe <- as.factor(training$classe)
+
+model <- randomForest(classe ~ .,   data=training, ntree = 50)
+predictions <- predict(model, testing)
+confusionMatrix(predictions, testing$classe)
+modelAcc <- confusionMatrix(predictions, testing$classe)$overall[[1]]
+```
+
+Our model is `r modelAcc` accurate.
+
+Now, we will predict the unknown classes of the validation set.
+
+```{r, valid}
+predictions <- predict(model, validation)
+predictions
+```
